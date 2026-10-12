@@ -2,6 +2,10 @@ package com.tony.nubiaarcoretest;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -21,6 +25,7 @@ import java.io.StringWriter;
 public class MainActivity extends Activity {
     private TextView output;
     private Session session;
+    private static final int SAVE_REPORT_REQUEST = 73;
     private void log(String message) { output.append(message + "\n"); }
     private void exception(Throwable e) {
         log("EXCEPTION: " + e.getClass().getName());
@@ -41,9 +46,10 @@ public class MainActivity extends Activity {
         layout.setPadding(24,24,24,24);
         Button test = new Button(this); test.setText("ESEGUI TEST ARCORE");
         Button copy = new Button(this); copy.setText("COPIA RAPPORTO");
+        Button save = new Button(this); save.setText("SALVA RAPPORTO TXT");
         output = new TextView(this); output.setTextIsSelectable(true);
         ScrollView scroll = new ScrollView(this); scroll.addView(output);
-        layout.addView(test); layout.addView(copy);
+        layout.addView(test); layout.addView(copy); layout.addView(save);
         layout.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(layout);
         test.setOnClickListener(v -> testAR());
@@ -52,7 +58,28 @@ public class MainActivity extends Activity {
             clipboard.setPrimaryClip(ClipData.newPlainText("ARCore diagnostics", output.getText().toString()));
             Toast.makeText(this, "Rapporto copiato", Toast.LENGTH_SHORT).show();
         });
+        save.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_TITLE, "nubia_arcore_report.txt");
+            startActivityForResult(intent, SAVE_REPORT_REQUEST);
+        });
         testAR();
+    }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SAVE_REPORT_REQUEST && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri == null) return;
+            try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
+                if (stream == null) throw new java.io.IOException("Impossibile aprire il file");
+                stream.write(output.getText().toString().getBytes(StandardCharsets.UTF_8));
+                Toast.makeText(this, "Rapporto TXT salvato", Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "Errore salvataggio: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
     }
     private void testAR() {
         output.setText("NUBIA ARCORE TEST - REPORT\n");
