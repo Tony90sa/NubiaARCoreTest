@@ -1,25 +1,28 @@
-# GRID 26 Racing — Android
+# GRID 26 Racing — Android v0.2
 
-Prototype arcade 3D non ufficiale per Godot 4.5, Android ARM64.
+Versione prototipo 3D non ufficiale sviluppata con **Godot 4.5**, Android ARM64.
 
-- Tutti i 22 piloti e le 11 scuderie del 2026, numeri ufficiali.
-- Scelta del pilota e della posizione sulla griglia (1–22).
-- Circuito originale Aurora, tre giri; solo gara.
-- 21 avversari IA: guida lungo il tracciato, anticipo, corsie e sorpassi.
-- Modelli procedurali 3D con colori semplificati per squadra.
-- Telecamera esterna, accelerazione assistita, sterzo a pulsanti, freno e boost.
-- Prestazioni squadra basate approssimativamente sulla classifica costruttori 2026 dopo Singapore (11/10/2026), non su dati telemetrici.
+## Cosa cambia in v0.2
+- **Sterzo realmente manuale**: il giocatore ruota la vettura, non viene agganciato automaticamente al tracciato.
+- **ACCELERA manuale**, freno e boost (il boost funziona tenendo anche premuto ACCELERA).
+- La vettura rallenta rilasciando il gas, e serve **frenare forte per le curve strette**.
+- Nuova pista originale **Aurora GP**: rettilinei, due tornanti, varianti a S, frenate anticipate; tracciato ispirato a categorie di curve di Monza, Bahrain e Suzuka, senza riprodurle.
+- Telecamera ravvicinata sopra e dietro l'alettone, con piani near/far ottimizzati.
+- Circuito ricalcolato con **un'unica mesh senza superfici sovrapposte**; ombre dinamiche disabilitate per evitare artefatti su alcuni driver mobili.
+- 21 IA con anticipazione della frenata, sorpassi laterali, protezione posizione e prestazioni di scuderia differenziate.
+- Uscita di pista: rallentamento su erba, recupero automatico solo per uscite profonde. Pulsante ↺ per riallinearsi se necessario.
 
-## APK
+## Gara
+11 scuderie e 22 piloti della stagione 2026, 3 giri, nessuna qualifica, posizione di partenza selezionabile. Vetture e scenario 3D originali semplificati.
 
-Nella scheda **Actions** seleziona **Build GRID 26 Android APK** e, dopo una build riuscita, scarica l'artifact **GRID26-APK**. Lo ZIP contiene l'APK di debug installabile manualmente.
+## Controlli
+- Sinistra: **◀ / ▶** per sterzare davvero.
+- Destra: **ACCELERA** da tenere premuto, **FRENO**, **BOOST** (assieme all'acceleratore).
+- **↺** (in alto a sinistra rispetto ai comandi) per recuperare la vettura.
+- Tastiera: A/D sterzo, W gas, S freno, Spazio boost, R recupero.
 
-Su PC, apri `project.godot` con Godot 4.5 e avvia la scena.
+## Installazione
+In **Actions** del ramo `f1-2026-android` scarica l'artefatto **GRID26-APK** della build riuscita più recente ed estrai l'APK di debug. Android 64-bit. Il package rimane `org.tony90sa.grid26`, installabile sopra la v0.1 (potrebbe essere necessario disinstallare la versione precedente se la chiave debug è diversa). Sorgenti nel repository.
 
-## Comandi
-
-Su Android: **◀**, **▶**, **FRENO**, **BOOST**. Accelerazione automatica. Tastiera: A/D o frecce, S/freccia giù, spazio.
-
-## Crediti
-
-Progetto originale e non ufficiale, senza affiliazione con Formula 1, piloti o squadre. Non contiene immagini o modelli proprietari. La fisica è volutamente arcade e la rappresentazione delle prestazioni è una stima.
+## Note
+Progetto indipendente, non affiliato a Formula 1 o squadre. I valori prestazionali sono stime di gioco e non dati telemetrici.
