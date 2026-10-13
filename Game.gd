@@ -39,7 +39,7 @@ const ROSTER := [
 	["Sergio Perez", 10, 11, 0.995, "PER"],
 	["Valtteri Bottas", 10, 77, 1.002, "BOT"]
 ]
-var circuit: Node3D
+var circuit
 var cars: Array[Dictionary] = []
 var player: Dictionary = {}
 var camera: Camera3D
@@ -175,7 +175,7 @@ func _make_grid() -> void:
 		var driver: Array = ROSTER[idx]
 		var team: Array = TEAMS[int(driver[1])]
 		var node: Node3D = preload("res://Car.gd").new()
-		node.setup(Color(team[1]), Color(team[2]), int(driver[2]), String(driver[4]))
+		node.call("setup", Color(team[1]), Color(team[2]), int(driver[2]), String(driver[4]))
 		add_child(node)
 		var lane := -3.0 if slot % 2 == 0 else 3.0
 		var entry: Dictionary = {
@@ -241,10 +241,10 @@ func _make_hud() -> void:
 	chasing_label = _create_label("", 18, Color.WHITE)
 	chasing_label.position = Vector2(24, 98)
 	hud_root.add_child(chasing_label)
-	var left := _make_button("◀", -1.0, 18, 154, 28, -153)
+	var left := _make_button("◀", 0.0, 18, 154, 28, -153)
 	left.button_down.connect(_turn_left_down)
 	left.button_up.connect(_turn_left_up)
-	var right := _make_button("▶", -1.0, 164, 300, 28, -153)
+	var right := _make_button("▶", 0.0, 164, 300, 28, -153)
 	right.button_down.connect(_turn_right_down)
 	right.button_up.connect(_turn_right_up)
 	var brake := _make_button("FRENO", 1.0, -340, -190, -170, -20)
