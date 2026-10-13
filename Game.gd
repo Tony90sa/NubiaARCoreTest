@@ -70,6 +70,9 @@ var speed_label: Label
 var boost_label: Label
 var chasing_label: Label
 var notice_label: Label
+var touch_buttons: Dictionary = {}
+var active_touches: Dictionary = {}
+
 
 func _ready() -> void:
 	_make_menu()
@@ -279,6 +282,7 @@ func _make_hud() -> void:
 	boost.button_up.connect(_boost_up)
 	var reset_button := _make_button("↺", 0.0, 22, 92, -255, -169)
 	reset_button.button_down.connect(_reset_pressed)
+	touch_buttons = {"left": left, "right": right, "brake": brake, "gas": gas, "boost": boost, "reset": reset_button}
 
 func _make_button(caption: String, horizontal_anchor: float, left: float, right: float, top: float, bottom: float) -> Button:
 	var button := Button.new()
@@ -295,6 +299,47 @@ func _make_button(caption: String, horizontal_anchor: float, left: float, right:
 	button.offset_bottom = bottom
 	hud_root.add_child(button)
 	return button
+
+func _touch_action(position: Vector2) -> String:
+	for key in touch_buttons.keys():
+		var button: Button = touch_buttons[key]
+		if button.get_global_rect().has_point(position):
+			return String(key)
+	return ""
+
+func _sync_touch_states() -> void:
+	# Multiple fingers at once: gas+steer+boost, independent of mouse emulation.
+	var actions: Array = active_touches.values()
+	var steer_left: bool = actions.has("left")
+	var steer_right: bool = actions.has("right")
+	turning = (1.0 if steer_left else 0.0) - (1.0 if steer_right else 0.0)
+	accelerating = actions.has("gas")
+	braking = actions.has("brake")
+	boosting = actions.has("boost")
+
+func _input(event: InputEvent) -> void:
+	if not racing or finished:
+		return
+	if event is InputEventScreenTouch:
+		var finger: InputEventScreenTouch = event
+		if finger.pressed:
+			var action: String = _touch_action(finger.position)
+			if action == "reset":
+				_reset_pressed()
+			elif action != "":
+				active_touches[finger.index] = action
+		else:
+			active_touches.erase(finger.index)
+		_sync_touch_states()
+	elif event is InputEventScreenDrag:
+		var drag: InputEventScreenDrag = event
+		if active_touches.has(drag.index):
+			var action: String = _touch_action(drag.position)
+			if action != "" and action != "reset":
+				active_touches[drag.index] = action
+			else:
+				active_touches.erase(drag.index)
+			_sync_touch_states()
 
 func _gas_down() -> void:
 	accelerating = true
