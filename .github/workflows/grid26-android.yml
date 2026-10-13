@@ -31,7 +31,7 @@ jobs:
       - name: Install Android packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
 
       - name: Install Godot 4.5 and matching Android templates
         shell: bash
@@ -87,7 +87,7 @@ jobs:
       - name: Export Android debug APK
         run: |
           mkdir -p build
-          ./godot --headless --path . --export-debug Android build/GRID26-debug.apk
+          ./godot --headless --verbose --path . --export-debug Android build/GRID26-debug.apk
           test -s build/GRID26-debug.apk
           ls -lh build/GRID26-debug.apk
 
