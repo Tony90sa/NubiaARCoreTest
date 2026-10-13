@@ -72,7 +72,7 @@ func corner_radius(distance: float) -> float:
 
 func safe_corner_speed(distance: float) -> float:
 	# Tuned to demand actual braking at the hairpins.
-	return clampf(sqrtf(29.0 * corner_radius(distance)), 17.0, 90.0)
+	return clampf(sqrt(29.0 * corner_radius(distance)), 17.0, 90.0)
 
 func nearest_progress(world_pos: Vector3, reference: float) -> float:
 	# Search only the next/previous 55 m: cannot jump between adjacent track segments.
