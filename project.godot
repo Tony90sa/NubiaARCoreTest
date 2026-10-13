@@ -1,0 +1,22 @@
+; Engine configuration file.
+; GRID 26 / arcade open-wheel racing
+
+config_version=5
+
+[application]
+config/name="GRID 26 Racing"
+run/main_scene="res://Game.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
+config/description="Unofficial open-wheel Grand Prix arcade racer"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/handheld/orientation=0
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.08, 0.11, 0.16, 1)
