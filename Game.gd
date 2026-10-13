@@ -46,7 +46,13 @@ var camera: Camera3D
 var chosen_index := 0
 var grid_position := 12
 var turning := 0.0
+var accelerating := false
 var braking := false
+var player_world_pos := Vector3.ZERO
+var player_heading := 0.0
+var offroad_seconds := 0.0
+var reset_count := 0
+var start_delay := 0.0
 var boosting := false
 var racing := false
 var finished := false
@@ -63,6 +69,7 @@ var pos_label: Label
 var speed_label: Label
 var boost_label: Label
 var chasing_label: Label
+var notice_label: Label
 
 func _ready() -> void:
 	_make_menu()
@@ -116,14 +123,14 @@ func _make_menu() -> void:
 		grid_choice.add_item("P%d / 22" % i)
 	grid_choice.select(11)
 	col.add_child(grid_choice)
-	col.add_child(_create_label("CIRCUITO AURORA   ·   3 GIRI   ·   SOLO GARA", 18, Color("#70e2d3")))
+	col.add_child(_create_label("AURORA GP v0.2 · 3 GIRI · STACCATE E CHICANE", 18, Color("#70e2d3")))
 	var race_button := Button.new()
 	race_button.text = "PARTI  →"
 	race_button.custom_minimum_size.y = 66.0
 	race_button.add_theme_font_size_override("font_size", 27)
 	race_button.pressed.connect(_start_race)
 	col.add_child(race_button)
-	col.add_child(_create_label("Accelerazione automatica · sterza · frena · usa il BOOST", 17, Color("#abb7ca")))
+	col.add_child(_create_label("Guida manuale: ACCELERA · FRENO · STERZA · BOOST", 17, Color("#abb7ca")))
 
 func _start_race() -> void:
 	if racing:
@@ -139,7 +146,10 @@ func _start_race() -> void:
 	_make_camera()
 	_make_hud()
 	race_time = 0.0
+	start_delay = 3.0
 	boost_meter = 100.0
+	offroad_seconds = 0.0
+	reset_count = 0
 	finished = false
 	racing = true
 
@@ -156,7 +166,7 @@ func _setup_environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58.0, -35.0, 0.0)
 	sun.light_energy = 1.35
-	sun.shadow_enabled = true
+	sun.shadow_enabled = false # Avoid mobile cascade shadow striping / acne
 	add_child(sun)
 
 func _driver_pace(idx: int) -> float:
@@ -179,37 +189,41 @@ func _make_grid() -> void:
 		add_child(node)
 		var lane := -3.0 if slot % 2 == 0 else 3.0
 		var entry: Dictionary = {
-			"index": idx, "node": node, "progress": -float(int(slot / 2)) * 14.0,
+			"index": idx, "node": node, "progress": -float(int(slot / 2)) * 17.0,
 			"lane": lane, "target_lane": lane, "speed": 0.0, "finished": false
 		}
 		cars.append(entry)
 		if idx == chosen_index:
 			player = entry
 		_position_car(entry)
+	player_world_pos = circuit.location(float(player["progress"]), float(player["lane"]))
+	player_world_pos.y = float(circuit.ROAD_Y) + 0.04
+	player_heading = circuit.direction_yaw(float(player["progress"]))
 
 func _position_car(entry: Dictionary) -> void:
 	var progress := float(entry["progress"])
 	var node: Node3D = entry["node"]
 	node.position = circuit.location(progress, float(entry["lane"]))
-	node.position.y += 0.04
+	node.position.y += float(circuit.ROAD_Y) + 0.04
 	node.rotation.y = circuit.direction_yaw(progress)
 
 func _make_camera() -> void:
 	camera = Camera3D.new()
 	camera.current = true
-	camera.fov = 70.0
-	camera.far = 2300.0
+	camera.fov = 78.0
+	# Lower far/near ratio greatly reduces depth precision artifacts on Adreno GPUs.
+	camera.near = 0.23
+	camera.far = 900.0
 	add_child(camera)
-	camera.global_position = (player["node"] as Node3D).global_position + Vector3(0, 8, 20)
-	_camera_follow(0.5)
+	_camera_follow(1.0)
 
 func _camera_follow(delta: float) -> void:
-	var node: Node3D = player["node"]
-	var rot := Basis(Vector3.UP, node.rotation.y)
-	var behind: Vector3 = rot * Vector3(0, 7.0, 18.0)
-	var ahead: Vector3 = rot * Vector3(0, 1.3, -13.0)
-	camera.global_position = camera.global_position.lerp(node.global_position + behind, clampf(delta * 4.2, 0.0, 1.0))
-	camera.look_at(node.global_position + ahead, Vector3.UP)
+	var rotation_basis := Basis(Vector3.UP, player_heading)
+	# Only ~1.3 m behind the tip of the rear wing.
+	var target: Vector3 = player_world_pos + rotation_basis * Vector3(0.0, 2.38, 4.45)
+	var focus: Vector3 = player_world_pos + rotation_basis * Vector3(0.0, 1.05, -17.0)
+	camera.global_position = camera.global_position.lerp(target, clampf(delta * 13.0, 0.0, 1.0))
+	camera.look_at(focus, Vector3.UP)
 
 func _make_hud() -> void:
 	hud_layer = CanvasLayer.new()
@@ -219,52 +233,58 @@ func _make_hud() -> void:
 	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_layer.add_child(hud_root)
 	lap_label = _create_label("GIRO 1/3", 26, Color.WHITE)
-	lap_label.position = Vector2(24, 14)
+	lap_label.position = Vector2(24, 12)
 	hud_root.add_child(lap_label)
-	pos_label = _create_label("P12/22", 35, Color("#ffd55b"))
-	pos_label.position = Vector2(24, 50)
+	pos_label = _create_label("P12/22", 35, Color("#ffe069"))
+	pos_label.position = Vector2(24, 49)
 	hud_root.add_child(pos_label)
 	speed_label = _create_label("0 KM/H", 26, Color.WHITE)
 	speed_label.anchor_left = 1.0
 	speed_label.anchor_right = 1.0
-	speed_label.offset_left = -255
-	speed_label.offset_right = -16
-	speed_label.offset_top = 19
+	speed_label.offset_left = -260
+	speed_label.offset_right = -14
+	speed_label.offset_top = 15
 	hud_root.add_child(speed_label)
 	boost_label = _create_label("BOOST 100%", 24, Color("#60eadb"))
 	boost_label.anchor_left = 1.0
 	boost_label.anchor_right = 1.0
-	boost_label.offset_left = -255
-	boost_label.offset_right = -15
-	boost_label.offset_top = 59
+	boost_label.offset_left = -260
+	boost_label.offset_right = -14
+	boost_label.offset_top = 56
 	hud_root.add_child(boost_label)
-	chasing_label = _create_label("", 18, Color.WHITE)
-	chasing_label.position = Vector2(24, 98)
+	chasing_label = _create_label("", 17, Color.WHITE)
+	chasing_label.position = Vector2(24, 102)
 	hud_root.add_child(chasing_label)
-	var left := _make_button("◀", 0.0, 18, 154, 28, -153)
+	notice_label = _create_label("", 25, Color("#ffcc70"))
+	notice_label.anchor_left = 0.50
+	notice_label.anchor_right = 0.50
+	notice_label.offset_left = -210
+	notice_label.offset_right = 260
+	notice_label.offset_top = 19
+	hud_root.add_child(notice_label)
+	var left := _make_button("◀", 0.0, 18, 154, -156, -14)
 	left.button_down.connect(_turn_left_down)
 	left.button_up.connect(_turn_left_up)
-	var right := _make_button("▶", 0.0, 164, 300, 28, -153)
+	var right := _make_button("▶", 0.0, 164, 300, -156, -14)
 	right.button_down.connect(_turn_right_down)
 	right.button_up.connect(_turn_right_up)
-	var brake := _make_button("FRENO", 1.0, -340, -190, -170, -20)
+	var brake := _make_button("FRENO", 1.0, -338, -190, -156, -14)
 	brake.button_down.connect(_brake_down)
 	brake.button_up.connect(_brake_up)
-	var boost := _make_button("BOOST", 1.0, -180, -18, -170, -20)
+	var gas := _make_button("ACCELERA", 1.0, -181, -15, -156, -14)
+	gas.button_down.connect(_gas_down)
+	gas.button_up.connect(_gas_up)
+	var boost := _make_button("BOOST", 1.0, -181, -15, -292, -170)
 	boost.button_down.connect(_boost_down)
 	boost.button_up.connect(_boost_up)
-	# Change steering control offsets to anchor at the bottom.
-	for button in [left, right]:
-		button.anchor_top = 1.0
-		button.anchor_bottom = 1.0
-		button.offset_top = -170
-		button.offset_bottom = -20
+	var reset_button := _make_button("↺", 0.0, 22, 92, -255, -169)
+	reset_button.button_down.connect(_reset_pressed)
 
 func _make_button(caption: String, horizontal_anchor: float, left: float, right: float, top: float, bottom: float) -> Button:
 	var button := Button.new()
 	button.text = caption
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", 25)
+	button.add_theme_font_size_override("font_size", 23)
 	button.anchor_left = horizontal_anchor
 	button.anchor_right = horizontal_anchor
 	button.anchor_top = 1.0
@@ -276,14 +296,36 @@ func _make_button(caption: String, horizontal_anchor: float, left: float, right:
 	hud_root.add_child(button)
 	return button
 
+func _gas_down() -> void:
+	accelerating = true
+
+func _gas_up() -> void:
+	accelerating = false
+
+func _reset_pressed() -> void:
+	if racing and not finished:
+		_rescue_car()
+
+func _rescue_car() -> void:
+	# Recovery is user-triggered or off-road only; never auto-steers on track.
+	var progress: float = float(player["progress"])
+	player_world_pos = circuit.location(progress, 0.0)
+	player_world_pos.y = float(circuit.ROAD_Y) + 0.04
+	player_heading = circuit.direction_yaw(progress)
+	player["lane"] = 0.0
+	player["speed"] = 0.0
+	offroad_seconds = 0.0
+	reset_count += 1
+
+
 func _turn_left_down() -> void:
-	turning = -1.0
-func _turn_left_up() -> void:
-	if turning < 0: turning = 0.0
-func _turn_right_down() -> void:
 	turning = 1.0
+func _turn_left_up() -> void:
+	if turning > 0.0: turning = 0.0
+func _turn_right_down() -> void:
+	turning = -1.0
 func _turn_right_up() -> void:
-	if turning > 0: turning = 0.0
+	if turning < 0.0: turning = 0.0
 func _brake_down() -> void:
 	braking = true
 func _brake_up() -> void:
@@ -298,18 +340,28 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	var key: InputEventKey = event
 	if key.keycode == KEY_LEFT or key.keycode == KEY_A:
-		turning = -1.0 if key.pressed else 0.0
-	elif key.keycode == KEY_RIGHT or key.keycode == KEY_D:
 		turning = 1.0 if key.pressed else 0.0
+	elif key.keycode == KEY_RIGHT or key.keycode == KEY_D:
+		turning = -1.0 if key.pressed else 0.0
 	elif key.keycode == KEY_DOWN or key.keycode == KEY_S:
 		braking = key.pressed
+	elif key.keycode == KEY_UP or key.keycode == KEY_W:
+		accelerating = key.pressed
 	elif key.keycode == KEY_SPACE:
 		boosting = key.pressed
+	elif key.keycode == KEY_R and key.pressed:
+		_reset_pressed()
+
 
 func _process(delta: float) -> void:
 	if not racing or finished:
 		return
 	delta = minf(delta, 0.05)
+	if start_delay > 0.0:
+		start_delay = maxf(0.0, start_delay - delta)
+		notice_label.text = "VIA!" if start_delay <= 0.0 else "PARTENZA: %d" % int(ceil(start_delay))
+		_camera_follow(delta)
+		return
 	race_time += delta
 	for entry in cars:
 		if entry == player:
@@ -317,74 +369,131 @@ func _process(delta: float) -> void:
 		_update_ai(entry, delta)
 	_update_player(delta)
 	for entry in cars:
-		_position_car(entry)
+		if entry != player:
+			_position_car(entry)
 	_camera_follow(delta)
 	_update_hud()
-	if float(player["progress"]) >= circuit.length * float(LAPS):
+	if float(player["progress"]) >= float(circuit.length) * float(LAPS):
 		_finish()
 
+
+func _ai_corner_target(progress: float, maximum: float) -> float:
+	var target: float = maximum
+	# An actual braking envelope: scan forward up to 160m and slow BEFORE corners.
+	for i in range(0, 14):
+		var ahead: float = float(i) * 12.0
+		var v: float = float(circuit.safe_corner_speed(progress + ahead))
+		var reachable: float = sqrtf(v * v + 2.0 * 36.0 * ahead)
+		target = minf(target, reachable)
+	return target
+
 func _update_ai(entry: Dictionary, delta: float) -> void:
-	var idx := int(entry["index"])
-	var progress := float(entry["progress"])
-	var base_speed := 75.0 * _driver_pace(idx)
-	var desired: float = base_speed * (1.0 - float(circuit.curve_factor(progress)))
-	var lane := float(entry["lane"])
-	var target_lane := float(entry["target_lane"])
-	var closest := 1000.0
+	var idx: int = int(entry["index"])
+	var progress: float = float(entry["progress"])
+	var skill: float = _driver_pace(idx)
+	# Reduce field gaps; the slowest car should not be 40km/h slower on a straight.
+	var performance: float = 0.82 + 0.18 * skill
+	var max_speed: float = 83.0 * performance
+	var desired: float = _ai_corner_target(progress, max_speed) * (0.91 + skill * 0.09)
+	var lane: float = float(entry["lane"])
+	var target_lane: float = float(entry["target_lane"])
+	var closest: float = 1000.0
 	for other in cars:
 		if other == entry:
 			continue
-		var gap := float(other["progress"]) - progress
-		if gap > 0.0 and gap < closest and gap < 45.0 and absf(float(other["lane"]) - lane) < 2.7:
-			closest = gap
-			if gap < 32.0:
-				var preference := 1.0 if idx % 2 == 0 else -1.0
-				var candidate := float(other["lane"]) + preference * 3.5
-				if absf(candidate) > 6.4:
-					candidate = float(other["lane"]) - preference * 3.5
-				var free := true
-				for blocker in cars:
-					if blocker == entry:
-						continue
-					if absf(float(blocker["progress"]) - progress) < 13.0 and absf(float(blocker["lane"]) - candidate) < 2.2:
-						free = false
-						break
-				if free:
-					target_lane = candidate
-				else:
-					desired = minf(desired, float(other["speed"]) + maxf((gap - 7.0) * 0.5, 0.0))
-	if closest > 54.0 and absf(target_lane) > 0.4:
-		target_lane = 0.0
-	if closest > 35.0:
-		target_lane = move_toward(target_lane, 0.0, delta * 0.8)
-	entry["target_lane"] = clampf(target_lane, -6.1, 6.1)
-	entry["lane"] = move_toward(lane, float(entry["target_lane"]), delta * 4.1)
-	entry["speed"] = move_toward(float(entry["speed"]), desired, delta * 18.0)
+		var gap: float = float(other["progress"]) - progress
+		if gap > -13.0 and gap < 52.0 and absf(float(other["lane"]) - lane) < 3.0:
+			if gap > 0.0 and gap < closest:
+				closest = gap
+				if gap < 32.0:
+					var preferred: float = -1.0 if idx % 2 == 0 else 1.0
+					var passing_lane: float = float(other["lane"]) + preferred * 3.5
+					if absf(passing_lane) > 6.1:
+						passing_lane = float(other["lane"]) - preferred * 3.5
+					var free: bool = true
+					for blocker in cars:
+						if blocker == entry:
+							continue
+						if absf(float(blocker["progress"]) - progress) < 17.0 and absf(float(blocker["lane"]) - passing_lane) < 2.6:
+							free = false
+							break
+					if free:
+						target_lane = passing_lane
+					else:
+						desired = minf(desired, float(other["speed"]) + maxf(0.0, (gap - 7.0) * 0.65))
+	# A controlled defensive move (max one) when the human approaches from behind.
+	var player_gap: float = float(entry["progress"]) - float(player["progress"])
+	if player_gap > 6.0 and player_gap < 38.0 and absf(float(player["lane"]) - lane) < 3.0:
+		if not bool(entry.get("defended", false)) and absf(target_lane) < 3.2:
+			target_lane = clampf(float(player["lane"]) * 0.74, -3.6, 3.6)
+			entry["defended"] = true
+	if closest > 48.0 and absf(target_lane) > 0.2:
+		target_lane = move_toward(target_lane, 0.0, delta * 0.55)
+	entry["target_lane"] = clampf(target_lane, -6.0, 6.0)
+	entry["lane"] = move_toward(lane, float(entry["target_lane"]), delta * 3.0)
+	var previous: float = float(entry["speed"])
+	entry["speed"] = move_toward(previous, desired, delta * (35.0 if previous > desired else 18.0))
 	entry["progress"] = progress + float(entry["speed"]) * delta
 
 func _update_player(delta: float) -> void:
-	var progress := float(player["progress"])
-	var base_speed := 75.0 * _driver_pace(chosen_index)
-	var target: float = base_speed * (1.0 - float(circuit.curve_factor(progress)))
-	var active_boost := boosting and boost_meter > 1.0 and not braking
-	if active_boost:
-		target += 11.0
-		boost_meter = maxf(0.0, boost_meter - delta * 25.0)
+	var progress: float = float(player["progress"])
+	var speed: float = float(player["speed"])
+	var team_skill: float = _driver_pace(chosen_index)
+	var max_speed: float = 83.0 * (0.82 + 0.18 * team_skill)
+	var boost_active: bool = accelerating and boosting and not braking and boost_meter >= 1.0
+	if boost_active:
+		max_speed += 6.0
+		boost_meter = maxf(0.0, boost_meter - delta * 26.0)
 	else:
-		boost_meter = minf(100.0, boost_meter + delta * 7.0)
+		boost_meter = minf(100.0, boost_meter + delta * 7.5)
+	# Physics-lite controls: no throttle input -> car coasts, then slows.
 	if braking:
-		target *= 0.42
-	var lane := clampf(float(player["lane"]) + turning * delta * 8.2, -6.1, 6.1)
-	# Collision avoidance: stay behind cars until choosing a clear side.
+		speed = maxf(0.0, speed - 44.0 * delta)
+	elif accelerating:
+		var acceleration: float = 19.0 * (0.60 + 0.40 * (1.0 - clampf(speed / max_speed, 0.0, 1.0)))
+		if boost_active:
+			acceleration += 5.5
+		speed = minf(max_speed, speed + acceleration * delta)
+	else:
+		speed = maxf(0.0, speed - (2.0 + speed * 0.038) * delta)
+	# Actual unassisted heading: the track curve NEVER sets player rotation.
+	# Steering is speed-sensitive, easy to handle at low speed, incapable of
+	# taking a 30m radius hairpin flat-out at 300 km/h.
+	if speed > 0.6:
+		var yaw_rate: float = lerpf(1.80, 0.78, clampf(speed / 85.0, 0.0, 1.0))
+		player_heading += turning * yaw_rate * delta
+	var lane: float = float(circuit.lane_of(player_world_pos, progress))
+	# No ghosting through defenders: approaching cars constrain forward speed.
 	for other in cars:
 		if other == player:
 			continue
-		var gap := float(other["progress"]) - progress
-		if gap > 0.0 and gap < 17.0 and absf(float(other["lane"]) - lane) < 2.45:
-			target = minf(target, float(other["speed"]) + maxf(0.0, (gap - 5.0) * 0.6))
+		var gap: float = float(other["progress"]) - progress
+		if gap > -0.5 and gap < 13.0 and absf(float(other["lane"]) - lane) < 2.45:
+			speed = minf(speed, float(other["speed"]) + maxf(0.0, (gap - 6.2) / maxf(delta, 0.012)))
+			speed = maxf(speed, 0.0)
+	var direction := Vector3(-sin(player_heading), 0.0, -cos(player_heading))
+	var next_pos: Vector3 = player_world_pos + direction * speed * delta
+	var predicted_progress: float = float(circuit.nearest_progress(next_pos, progress))
+	var max_step: float = speed * delta * 1.4 + 1.0
+	predicted_progress = clampf(predicted_progress, progress - max_step, progress + max_step)
+	player_world_pos = next_pos
+	player["progress"] = predicted_progress
+	lane = float(circuit.lane_of(player_world_pos, predicted_progress))
 	player["lane"] = lane
-	player["speed"] = move_toward(float(player["speed"]), target, delta * (35.0 if braking else 15.0))
-	player["progress"] = progress + float(player["speed"]) * delta
+	if absf(lane) > 9.8:
+		# Grass/runoff incurs a severe penalty; no auto-correction of steering.
+		speed = maxf(0.0, speed - 42.0 * delta)
+		offroad_seconds += delta
+	else:
+		offroad_seconds = maxf(0.0, offroad_seconds - delta * 4.0)
+	if absf(lane) > 23.0 or offroad_seconds > 2.5:
+		_rescue_car()
+		return
+	player["speed"] = speed
+	var node: Node3D = player["node"]
+	node.position = player_world_pos
+	node.rotation.y = player_heading
+
 
 func _sorted_field() -> Array[Dictionary]:
 	var order: Array[Dictionary] = cars.duplicate()
@@ -409,6 +518,12 @@ func _update_hud() -> void:
 			nearest = gap
 			rival_name = "%s  +%.0fm" % [ROSTER[int(entry["index"])][0], gap]
 	chasing_label.text = rival_name
+	if offroad_seconds > 0.1:
+		notice_label.text = "FUORI PISTA! RALLENTA"
+	else:
+		notice_label.text = ""
+	if reset_count > 0:
+		chasing_label.text += "  ·  RIENTRI: %d" % reset_count
 
 func _finish() -> void:
 	finished = true
