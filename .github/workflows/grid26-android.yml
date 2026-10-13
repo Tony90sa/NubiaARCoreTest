@@ -23,8 +23,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      # The ubuntu-24.04 runner already provides an Android SDK.
 
       - name: Install Android packages
         run: |
