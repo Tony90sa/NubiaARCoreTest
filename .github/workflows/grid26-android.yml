@@ -84,6 +84,9 @@ jobs:
           ./godot --headless --path . --check-only --script res://Track.gd
           ./godot --headless --path . --check-only --script res://Game.gd
 
+      - name: Gameplay smoke test (22 cars, gas, steering and braking)
+        run: ./godot --headless --path . --script res://tests/smoke.gd
+
       - name: Export Android debug APK
         run: |
           mkdir -p build
