@@ -327,7 +327,7 @@ func _update_ai(entry: Dictionary, delta: float) -> void:
 	var idx := int(entry["index"])
 	var progress := float(entry["progress"])
 	var base_speed := 75.0 * _driver_pace(idx)
-	var desired := base_speed * (1.0 - circuit.curve_factor(progress))
+	var desired: float = base_speed * (1.0 - float(circuit.curve_factor(progress)))
 	var lane := float(entry["lane"])
 	var target_lane := float(entry["target_lane"])
 	var closest := 1000.0
@@ -365,7 +365,7 @@ func _update_ai(entry: Dictionary, delta: float) -> void:
 func _update_player(delta: float) -> void:
 	var progress := float(player["progress"])
 	var base_speed := 75.0 * _driver_pace(chosen_index)
-	var target := base_speed * (1.0 - circuit.curve_factor(progress))
+	var target: float = base_speed * (1.0 - float(circuit.curve_factor(progress)))
 	var active_boost := boosting and boost_meter > 1.0 and not braking
 	if active_boost:
 		target += 11.0
