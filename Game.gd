@@ -383,7 +383,7 @@ func _ai_corner_target(progress: float, maximum: float) -> float:
 	for i in range(0, 14):
 		var ahead: float = float(i) * 12.0
 		var v: float = float(circuit.safe_corner_speed(progress + ahead))
-		var reachable: float = sqrtf(v * v + 2.0 * 36.0 * ahead)
+		var reachable: float = sqrt(v * v + 2.0 * 36.0 * ahead)
 		target = minf(target, reachable)
 	return target
 
