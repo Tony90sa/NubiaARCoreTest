@@ -86,7 +86,7 @@ func _strip(left: float, right: float, height: float, base: Color, alternates: b
 		var s0 := sideways(d0)
 		var s1 := sideways(d1)
 		var shade: Color = base
-		if alternates and (i / 3) % 2 == 0:
+		if alternates and int(i / 3) % 2 == 0:
 			shade = Color("#e23a4b")
 		var a := p0 + s0 * left
 		var b := p0 + s0 * right
